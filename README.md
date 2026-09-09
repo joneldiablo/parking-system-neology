@@ -374,19 +374,27 @@ curl -X POST http://localhost:8082/neo/estancias/salida \
 
 ---
 
-## Pruebas
+## Pruebas (25 en total: 14 backend + 11 frontend)
 
-### Backend (JUnit + Mockito, Spring Boot Test con H2)
+### Backend (JUnit 5 + Mockito) — 14 tests
 ```bash
 cd backend
 mvn test
 ```
+Cubren las reglas de negocio de `ParkingService` (entrada con vehículo no registrado o
+con estancia activa, costo de salida por tipo de vehículo, acumulación de minutos del
+residente, reporte de pagos, reinicio de mes) y el `QrController` (placa inválida →
+400, vehículo inexistente → 404, vehículo válido → PNG).
 
-### Frontend (Jasmine + Karma, Chrome headless)
+### Frontend (Jasmine + Karma, Chrome headless) — 11 tests
 ```bash
 cd frontend
-npm test
+CHROME_BIN=/ruta/al/chrome npm test
 ```
+Cubren `VehiculoListComponent` (render, filtro por placa, lista vacía) y
+`EstanciaFormComponent` (validación de placa, entrada/salida con placa en mayúsculas,
+manejo de errores del backend). `karma.conf.js` ya trae el launcher
+`ChromeHeadlessNoSandbox` (`--no-sandbox`) para entornos sin root.
 
 ### Verificación manual rápida (API)
 ```bash
