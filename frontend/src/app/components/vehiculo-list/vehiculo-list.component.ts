@@ -24,6 +24,7 @@ import { ParkingService, Vehiculo } from '../../services/parking.service';
               <tr>
                 <th scope="col">Placa</th>
                 <th scope="col">Tipo</th>
+                <th scope="col" class="text-end">QR</th>
               </tr>
             </thead>
             <tbody>
@@ -39,9 +40,17 @@ import { ParkingService, Vehiculo } from '../../services/parking.service';
                     {{ v.tipo }}
                   </span>
                 </td>
+                <td class="text-end">
+                  <button type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          title="Descargar QR para el parabrisas"
+                          (click)="descargarQr(v.placa)">
+                    <i class="bi bi-qr-code"></i>
+                  </button>
+                </td>
               </tr>
               <tr *ngIf="vehiculosFiltrados.length === 0">
-                <td colspan="2" class="text-center text-muted">
+                <td colspan="3" class="text-center text-muted">
                   No hay vehículos registrados.
                 </td>
               </tr>
@@ -79,5 +88,22 @@ export class VehiculoListComponent implements OnInit {
     this.vehiculosFiltrados = this.vehiculos.filter(v =>
       v.placa.toLowerCase().includes(valor)
     );
+  }
+
+  descargarQr(placa: string): void {
+    fetch(`/neo/qr/${placa}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${placa}-qr.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(err => console.error('Error generando QR', err));
   }
 }

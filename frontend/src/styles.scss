@@ -43,6 +43,9 @@ $primary: #0d6efd;
 @import 'bootstrap/scss/helpers';
 @import 'bootstrap/scss/utilities/api';
 
+// Iconos
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
 // Estilos de la aplicación
 html, body {
   height: 100%;

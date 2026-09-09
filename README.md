@@ -100,6 +100,9 @@ prueba-tecnica-neology/
 │           ├── components/               # VehiculoList, EstanciaForm, VehiculoForm, PagoReport
 │           └── services/parking.service.ts   # Cliente HTTP de la API
 │
+├── kiosk/                                # 📷 App del kiosko (Car QR), se copia al JAR en /kiosk
+│   └── index.html                        # Escáner de QR para entrada/salida (vanilla, sin build)
+│
 ├── docker-compose.yml                   # (Opcional) PostgreSQL sin instalar Postgres
 ├── db/                                  # Scripts de base de datos
 │   ├── init-db.sh                       # Crea BD + usuario si no existen (idempotente)
@@ -260,6 +263,69 @@ residentes con los montos de la tabla anterior.
 
 ---
 
+## 📷 Kiosko de acceso (Car QR)
+
+Frontend extra **desacoplado** (`kiosk/index.html`): en el build de producción se
+**copia dentro del mismo JAR** (ruta `/kiosk`) junto con el admin, pero como es un
+archivo HTML suelto también puede servirse aparte (otro puerto/servidor estático) si
+algún día se quiere desplegar por separado.
+
+Frente a la pluma de acceso: el conductor muestra un **QR pegado al parabrisas** y el
+kiosko (una cámara + pantalla) registra la entrada o la salida automáticamente. No
+toca teclado ni botones: la aplicación decide sola, consumiendo la misma API `/neo`.
+
+- **El QR codifica solo la placa** (p. ej. `NR001`), simple y a prueba de
+  desactualizaciones: si el vehículo cambia de tipo, el mismo QR sigue valiendo
+  porque la tarifa se resuelve en el backend.
+- **Cómo decide entrada o salida:** consulta `GET /neo/estancias/{placa}`; si hay una
+  estancia **sin** `fechaSalida` → es salida (`POST /neo/estancias/salida`), si no → entrada
+  (`POST /neo/estancias/entrada`). Pantalla completa verde "BIENVENIDO" / "ADIOS $X", o roja si el QR no es válido o el vehículo no está registrado. Sonido por WebAudio.
+- **Stack:** HTML/CSS/JS puro (sin build) + `html5-qrcode` para la cámara + Bootstrap 5 de CDN.
+  En `GET /neo/qr/{placa}` el backend (ZXing) genera el PNG a imprimir.
+
+### Generar e imprimir los QR
+
+En la app admin → **Vehículos Registrados** hay un botón **QR** por cada fila que
+descarga `PLACA-qr.png`. También por consola:
+
+```bash
+curl -o NR001-qr.png http://localhost:8082/neo/qr/NR001
+```
+
+### Probar el kiosko
+
+Dos formas, según cómo lo quieras servir:
+
+**A) Dentro del JAR (todo junto)** — el build `prod` copia `kiosk/index.html` al
+jár; queda disponible en la misma app:
+
+```bash
+mvn -Pprod clean package                        # de la raíz
+java -jar backend/target/parking-system-1.0.0.jar
+# abre: http://localhost:8082/kiosk/            <- kiosko
+#       http://localhost:8082/                  <- admin
+```
+
+**B) Desacoplado (app aparte)** — sirve el directorio `kiosk/` con tu servidor
+favorito apuntando a la API en `:8082`:
+
+```bash
+# terminal 1: backend
+java -jar backend/target/parking-system-1.0.0.jar
+# terminal 2: kiosko
+python3 -m http.server 8090 --directory kiosk   # abre http://localhost:8090
+```
+
+Como el kiosko resuelve la API sola (`/neo` dentro del JAR, `http://localhost:8082/neo`
+servido aparte), ambos modos funcionan sin configuración extra.
+
+> Si la cámara no está disponible (escritorios/headless), el kiosko muestra el motivo
+> y queda activo un **campo manual** (abajo a la izquierda) para digitar la placa y
+> seguir el mismo flujo. Los orígenes `http://localhost:4200` y `http://localhost:8090`
+> están permitidos en CORS.
+
+---
+
 ## API REST (`/neo`)
 
 | Método | Endpoint | Descripción |
@@ -274,6 +340,7 @@ residentes con los montos de la tabla anterior.
 | GET | `/neo/vehiculos` | Listar todos los vehículos |
 | GET | `/neo/estancias` | Listar todas las estancias |
 | GET | `/neo/estancias/{placa}` | Estancias de un vehículo |
+| GET | `/neo/qr/{placa}` | Imagen PNG con el QR de una placa registrada |
 
 ### Ejemplos con curl
 
