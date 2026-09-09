@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Build
+dist/
+build/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Angular
+.angular/
+frontend/dist/
+frontend/.angular/
+
+# Frontend build generado (servido por Spring Boot)
+backend/src/main/resources/static/
