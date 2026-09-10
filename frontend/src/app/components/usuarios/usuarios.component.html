@@ -1,0 +1,124 @@
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Administradores</h4>
+  <button class="btn btn-primary" (click)="mostrarFormulario = !mostrarFormulario">
+    <i class="bi bi-person-plus me-1"></i> Nuevo admin
+  </button>
+</div>
+
+<div *ngIf="msg" class="alert alert-{{ msg.tipo }} py-2" role="alert">
+  {{ msg.text }}
+</div>
+
+<div *ngIf="cargando" class="text-center py-4">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <p class="text-body-secondary small mb-0">
+      Solo el superadmin (registrado en <code>.env</code>) puede gestionar administradores.
+      Los admins no tienen acceso a esta sección.
+    </p>
+  </div>
+</div>
+
+<!-- Formulario de creación -->
+<div *ngIf="mostrarFormulario" class="card shadow-sm mb-4">
+  <div class="card-header">Nuevo administrador</div>
+  <div class="card-body">
+    <form (ngSubmit)="crear()" #createForm="ngForm">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Usuario</label>
+          <input type="text" class="form-control text-uppercase" name="nusername" required
+                 [(ngModel)]="nuevo.username" placeholder="admin01">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Contraseña</label>
+          <input type="password" class="form-control" name="npassword" required minlength="6"
+                 [(ngModel)]="nuevo.password" placeholder="mínimo 6 caracteres">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="nactivo" name="nactivo"
+                   [(ngModel)]="nuevo.activo">
+            <label class="form-check-label" for="nactivo">Activo</label>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-success" [disabled]="createForm.invalid">
+          <i class="bi bi-check-lg me-1"></i> Crear
+        </button>
+        <button type="button" class="btn btn-outline-secondary ms-2" (click)="mostrarFormulario = false">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Listado -->
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Usuario</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="!cargando && usuarios.length === 0">
+          <td colspan="4" class="text-center text-body-secondary py-4">
+            No hay administradores registrados.
+          </td>
+        </tr>
+        <tr *ngFor="let u of usuarios">
+          <ng-container *ngIf="editando && editando.id === u.id; else fila">
+            <td><strong class="text-uppercase">{{ u.username }}</strong></td>
+            <td><span class="badge bg-primary">{{ u.rol }}</span></td>
+            <td>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="edit-activo-{{ u.id }}"
+                       [(ngModel)]="editando.activo">
+                <label class="form-check-label" for="edit-activo-{{ u.id }}">
+                  {{ editando.activo ? 'Activo' : 'Inactivo' }}
+                </label>
+              </div>
+            </td>
+            <td class="text-end">
+              <div class="input-group input-group-sm" style="max-width:220px;margin-left:auto;">
+                <input type="password" class="form-control" placeholder="Nueva contraseña"
+                       [(ngModel)]="editando.password">
+                <button class="btn btn-success" (click)="guardarCambios(u.id)">Guardar</button>
+                <button class="btn btn-outline-secondary" (click)="editando = null">✕</button>
+              </div>
+            </td>
+          </ng-container>
+          <ng-template #fila>
+            <td><strong class="text-uppercase">{{ u.username }}</strong>
+              <span *ngIf="esYo(u)" class="badge text-bg-info ms-1">tú</span>
+            </td>
+            <td><span class="badge bg-primary">{{ u.rol }}</span></td>
+            <td>
+              <span class="badge" [ngClass]="u.activo ? 'text-bg-success' : 'text-bg-secondary'">
+                {{ u.activo ? 'Activo' : 'Inactivo' }}
+              </span>
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary me-1" (click)="editando = { id: u.id, password: '', activo: u.activo }">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" [disabled]="esYo(u)" (click)="eliminar(u)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </ng-template>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

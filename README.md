@@ -366,21 +366,56 @@ docker compose up --build -d          # db (postgres:16) + app (jar :8082) + pro
 
 ---
 
+## 🔐 Autenticación y seguridad
+
+El panel admin exige **login con JWT** y maneja dos roles: `SUPERADMIN` y `ADMIN`.
+
+- `POST /api/auth/login` valida credenciales y devuelve el **token** (más `username` y `rol`).
+- El token se guarda en **`sessionStorage`** (se pierde al cerrar la pestaña) y viaja
+  en la cabecera `Authorization: Bearer <token>`.
+- El **superadmin solo se siembra desde variables de entorno**
+  (`SUPERADMIN_USER` / `SUPERADMIN_PASSWORD`) al arrancar; no existe en el código.
+- El CRUD de usuarios (`/api/usuarios/**`) es **exclusivo del `SUPERADMIN`**; los
+  `ADMIN` solo administran vehículos/estancias y reciben `403` en esa ruta.
+- El `id` del usuario viaja **cifrado (AES/GCM)** dentro del JWT, que además va firmado
+  (HMAC-SHA256): **doble capa**. El JWT no es legible ni manipulable sin la clave.
+
+### Servicios abiertos para el kiosko QR
+
+Por diseño, el **kiosko físico** no puede autenticarse, así que estos servicios
+quedan **sin token** (ver `SecurityConfig`):
+
+| Método | Endpoint | Uso |
+|--------|----------|-----|
+| POST | `/neo/estancias/entrada` | Registrar entrada por QR |
+| POST | `/neo/estancias/salida` | Registrar salida por QR |
+| GET | `/neo/estancias/{placa}` | Consultar si hay una estancia activa |
+| GET | `/neo/qr/{placa}` | Generar el PNG del QR |
+
+**Todo lo demás requiere token**: `/neo/vehiculos`, `/neo/estancias` (listado),
+`/neo/residentes/pagos`, `/neo/mes/iniciar` y toda la gestión de usuarios
+(`/api/usuarios/**`, `/api/auth/me`). Un recurso protegido sin token responde
+`401`; con rol insuficiente, `403`.
+
+---
+
 ## API REST (`/neo`)
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/neo/vehiculos/oficiales` | Alta de vehículo oficial (no paga) |
-| POST | `/neo/vehiculos/residentes` | Alta de vehículo residente |
-| POST | `/neo/vehiculos/no-residentes` | Alta de vehículo no residente |
-| POST | `/neo/estancias/entrada` | Registrar entrada de vehículo |
-| POST | `/neo/estancias/salida` | Registrar salida (calcula cobro) |
-| GET | `/neo/residentes/pagos` | Informe de pagos de residentes |
-| POST | `/neo/mes/iniciar` | Reiniciar mes (re)establecer estancias y residentes |
-| GET | `/neo/vehiculos` | Listar todos los vehículos |
-| GET | `/neo/estancias` | Listar todas las estancias |
-| GET | `/neo/estancias/{placa}` | Estancias de un vehículo |
-| GET | `/neo/qr/{placa}` | Imagen PNG con el QR de una placa registrada |
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| POST | `/neo/vehiculos/oficiales` | Alta de vehículo oficial (no paga) | 🔒 |
+| POST | `/neo/vehiculos/residentes` | Alta de vehículo residente | 🔒 |
+| POST | `/neo/vehiculos/no-residentes` | Alta de vehículo no residente | 🔒 |
+| POST | `/neo/estancias/entrada` | Registrar entrada de vehículo | 🔓 kiosko |
+| POST | `/neo/estancias/salida` | Registrar salida (calcula cobro) | 🔓 kiosko |
+| GET | `/neo/residentes/pagos` | Informe de pagos de residentes | 🔒 |
+| POST | `/neo/mes/iniciar` | Reiniciar mes (re)establecer estancias y residentes | 🔒 |
+| GET | `/neo/vehiculos` | Listar todos los vehículos | 🔒 |
+| GET | `/neo/estancias` | Listar todas las estancias | 🔒 |
+| GET | `/neo/estancias/{placa}` | Estancias de un vehículo | 🔓 kiosko |
+| GET | `/neo/qr/{placa}` | Imagen PNG con el QR de una placa registrada | 🔓 kiosko |
+
+> 🔒 requiere `Authorization: Bearer <token>` · 🔓 abierto (kiosko QR)
 
 ### Ejemplos con curl
 
@@ -414,17 +449,19 @@ curl -X POST http://localhost:8082/neo/estancias/salida \
 
 ---
 
-## Pruebas (25 en total: 14 backend + 11 frontend)
+## Pruebas (33 en total: 22 backend + 11 frontend)
 
-### Backend (JUnit 5 + Mockito) — 14 tests
+### Backend (JUnit 5 + Mockito) — 22 tests
 ```bash
 cd backend
 mvn test
 ```
 Cubren las reglas de negocio de `ParkingService` (entrada con vehículo no registrado o
 con estancia activa, costo de salida por tipo de vehículo, acumulación de minutos del
-residente, reporte de pagos, reinicio de mes) y el `QrController` (placa inválida →
-400, vehículo inexistente → 404, vehículo válido → PNG).
+residente, reporte de pagos, reinicio de mes), el `QrController` (placa inválida →
+400, vehículo inexistente → 404, vehículo válido → PNG) y la seguridad: `JwtService`
+(firma/expiración y que **el id no viaja en claro**) y `CryptoIdService` (cifrado
+AES/GCM del id).
 
 ### Frontend (Jasmine + Karma, Chrome headless) — 11 tests
 ```bash
