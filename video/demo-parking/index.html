@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Parking System — Demo</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --surface: #131c2e;
+        --surface-2: #1c2942;
+        --ink: #eaf1fc;
+        --muted: #8fa6c4;
+        --accent: #3b9dfd;
+        --accent-soft: #9ccbff;
+        --success: #2bd9a8;
+        --danger: #ff6b6b;
+        --line: rgba(234, 241, 252, 0.14);
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px; height: 1080px; overflow: hidden;
+        background: var(--bg); color: var(--ink);
+        font-family: "Montserrat", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+      .mono { font-family: "JetBrains Mono", monospace; }
+
+      /* ── Background (untimed, persistent) ── */
+      .bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+      .bg-grid {
+        position: absolute; inset: 0;
+        background-image:
+          linear-gradient(rgba(234, 241, 252, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(234, 241, 252, 0.05) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: radial-gradient(80% 70% at 50% 40%, #000 30%, transparent 100%);
+      }
+      .glow {
+        position: absolute; border-radius: 50%; filter: blur(10px);
+        background: radial-gradient(circle, rgba(59, 157, 253, 0.34), transparent 66%);
+      }
+      .glow.a { width: 1100px; height: 1100px; left: -260px; top: -340px; }
+      .glow.b { width: 900px; height: 900px; right: -260px; bottom: -360px;
+        background: radial-gradient(circle, rgba(43, 217, 168, 0.16), transparent 66%); }
+      .ghost-mark {
+        position: absolute; right: -40px; bottom: -120px; width: 1400px; height: 420px;
+        background: repeating-linear-gradient(90deg, rgba(59,157,253,0.05) 0 2px, transparent 2px 26px);
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+      }
+
+      /* ── Shared chrome ── */
+      .tag { position: absolute; left: 120px; top: 74px; display: flex; align-items: center; gap: 16px; z-index: 12; }
+      .tag .num { font-family: "JetBrains Mono", monospace; font-size: 22px; color: var(--accent); letter-spacing: 0.14em; }
+      .tag .name { font-family: "JetBrains Mono", monospace; font-size: 22px; color: var(--muted); letter-spacing: 0.28em; text-transform: uppercase; }
+      .progress { position: absolute; left: 120px; right: 120px; bottom: 58px; height: 2px; background: rgba(234, 241, 252, 0.12); z-index: 30; }
+      .progress .fill { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-soft)); }
+
+      .lower {
+        position: absolute; left: 120px; bottom: 130px; max-width: 1180px; z-index: 10;
+        background: rgba(11, 18, 32, 0.88);
+        border-left: 4px solid var(--accent); border-radius: 12px;
+        padding: 26px 34px 26px 30px; backdrop-filter: blur(6px);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+      .lower .kicker { font-family: "JetBrains Mono", monospace; font-size: 18px; color: var(--accent); letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 10px; }
+      .lower .title { font-size: 40px; font-weight: 700; letter-spacing: -0.01em; }
+      .lower .sub { margin-top: 8px; font-size: 23px; font-weight: 400; color: var(--muted); }
+
+      .chip {
+        display: inline-block; padding: 12px 22px; border-radius: 999px;
+        background: rgba(59, 157, 253, 0.14); border: 1px solid rgba(59, 157, 253, 0.45);
+        color: var(--accent-soft); font-family: "JetBrains Mono", monospace;
+        font-size: 22px; letter-spacing: 0.04em;
+      }
+
+      /* ── Footage ── */
+      video.screen {
+        position: absolute !important;
+        object-fit: cover; border-radius: 26px; border: 1px solid var(--line);
+        box-shadow: 0 40px 110px rgba(0, 0, 0, 0.6), 0 0 90px rgba(59, 157, 253, 0.16);
+        opacity: 0; z-index: 5; background: #05080f;
+      }
+      /* kiosko: retrato, centrado (margin-top efectivo) */
+      #vid-qr { left: 561px !important; top: 150px !important; width: 798px !important; height: 780px !important; }
+      /* admin: viewport ancho, centrado */
+      #vid-login, #vid-veh, #vid-alta, #vid-est, #vid-pagos, #vid-users {
+        left: 210px !important; top: 210px !important; width: 1500px !important; height: 661px !important;
+      }
+      .kiosk-halo {
+        position: absolute; left: 501px; top: 90px; width: 918px; height: 900px;
+        border-radius: 50%; background: radial-gradient(circle, rgba(43, 217, 168, 0.22), transparent 62%);
+        z-index: 3; opacity: 0;
+      }
+
+      /* ── Frame 1 Hook ── */
+      .f1-inner { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+      .f1-kicker { font-family: "JetBrains Mono", monospace; font-size: 24px; letter-spacing: 0.4em; color: var(--accent); text-transform: uppercase; margin-bottom: 30px; }
+      .f1-title { font-family: "Archivo Black", sans-serif; font-size: 168px; line-height: 0.92; letter-spacing: -0.035em; }
+      .f1-title .l2 { color: var(--accent); }
+      .f1-sub { margin-top: 34px; font-size: 34px; font-weight: 400; color: var(--muted); letter-spacing: 0.02em; }
+      .f1-words { margin-top: 44px; display: flex; gap: 22px; justify-content: center; }
+      .f1-words .w { font-family: "JetBrains Mono", monospace; font-size: 27px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink); padding: 14px 26px; border: 1px solid var(--line); border-radius: 999px; }
+
+      /* ── Frame 2 Idea ── */
+      .f2 { position: absolute; inset: 0; }
+      .f2 .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+      .hub {
+        width: 460px; height: 460px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+        background: radial-gradient(circle at 50% 35%, rgba(59, 157, 253, 0.28), rgba(19, 28, 46, 0.9) 65%);
+        border: 1px solid rgba(59, 157, 253, 0.5); box-shadow: 0 0 120px rgba(59, 157, 253, 0.28);
+      }
+      .hub .h-mark { font-family: "Archivo Black", sans-serif; font-size: 54px; letter-spacing: -0.02em; }
+      .hub .h-sub { margin-top: 12px; font-family: "JetBrains Mono", monospace; font-size: 20px; color: var(--accent-soft); letter-spacing: 0.2em; }
+      .node { position: absolute; left: 50%; top: 50%; width: 340px; padding: 26px 28px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+      .node .n-ico { font-size: 30px; margin-bottom: 12px; }
+      .node .n-title { font-size: 30px; font-weight: 700; }
+      .node .n-sub { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 18px; color: var(--muted); }
+      .n-tl { transform: translate(-900px, -330px); }
+      .n-tr { transform: translate(560px, -330px); }
+      .n-bl { transform: translate(-900px, 150px); }
+      .n-br { transform: translate(560px, 150px); }
+      svg.links { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+      .f2-title { position: absolute; left: 120px; top: 74px; }
+      .f2-title .t1 { font-family: "JetBrains Mono", monospace; font-size: 22px; letter-spacing: 0.28em; color: var(--accent); text-transform: uppercase; }
+      .f2-title .t2 { margin-top: 10px; font-size: 46px; font-weight: 700; color: var(--muted); }
+
+      /* ── Frame 9 Security ── */
+      .f9-inner { position: absolute; inset: 0; padding: 200px 120px 160px; }
+      .f9-head { font-family: "Archivo Black", sans-serif; font-size: 96px; letter-spacing: -0.03em; }
+      .f9-head .acc { color: var(--accent); }
+      .f9-grid { margin-top: 60px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+      .f9-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 34px 30px; min-height: 320px; display: flex; flex-direction: column; justify-content: space-between; }
+      .f9-card .c-ico { font-size: 40px; }
+      .f9-card .c-title { font-size: 30px; font-weight: 700; line-height: 1.15; }
+      .f9-card .c-sub { margin-top: 12px; font-family: "JetBrains Mono", monospace; font-size: 17px; color: var(--muted); line-height: 1.5; }
+      .f9-card .c-badge { align-self: flex-start; font-family: "JetBrains Mono", monospace; font-size: 15px; padding: 7px 14px; border-radius: 999px; letter-spacing: 0.1em; background: rgba(59, 157, 253, 0.14); color: var(--accent-soft); border: 1px solid rgba(59, 157, 253, 0.4); }
+      .f9-card.super .c-badge { background: rgba(43, 217, 168, 0.14); color: var(--success); border-color: rgba(43, 217, 168, 0.4); }
+
+      /* ── Frame 11 Close ── */
+      .f11-inner { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+      .f11-mark { font-family: "Archivo Black", sans-serif; font-size: 150px; letter-spacing: -0.035em; }
+      .f11-mark .acc { color: var(--accent); }
+      .f11-stack { margin-top: 54px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+      .f11-repo { margin-top: 46px; font-family: "JetBrains Mono", monospace; font-size: 26px; color: var(--muted); letter-spacing: 0.04em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="159">
+      <div class="bg" aria-hidden="true" data-layout-allow-overflow="true">
+        <div class="bg-grid"></div>
+        <div class="glow a"></div>
+        <div class="glow b"></div>
+        <div class="ghost-mark"></div>
+      </div>
+
+      <div class="kiosk-halo" id="halo"></div>
+
+      <!-- footage real (clips del usuario) -->
+      <video id="vid-qr"    class="screen" src="assets/qr-real.mp4"        data-start="34"  data-duration="13" data-track-index="1" muted playsinline></video>
+      <video id="vid-login" class="screen" src="assets/plat-login.mp4"     data-start="48"  data-duration="6"  data-playback-rate="0.8" data-track-index="1" muted playsinline></video>
+      <video id="vid-veh"   class="screen" src="assets/plat-vehiculos.mp4" data-start="54"  data-duration="8"  data-track-index="1" muted playsinline></video>
+      <video id="vid-alta"  class="screen" src="assets/plat-alta.mp4"      data-start="62"  data-duration="17" data-track-index="1" muted playsinline></video>
+      <video id="vid-est"   class="screen" src="assets/admin-demo.mp4"     data-start="79"  data-duration="13" data-media-start="43" data-track-index="1" muted playsinline></video>
+      <video id="vid-pagos" class="screen" src="assets/admin-demo.mp4"     data-start="92"  data-duration="7"  data-media-start="53.5" data-track-index="1" muted playsinline></video>
+      <video id="vid-users" class="screen" src="assets/admin-demo.mp4"     data-start="125" data-duration="16" data-media-start="58.5" data-track-index="1" muted playsinline></video>
+
+      <!-- voz en off · Developer Final (Qwen TTS 1.7B) · track 10 -->
+      <audio id="vo1"  src="assets/vo/vo1.wav"  data-start="0"   data-duration="7.20"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo2"  src="assets/vo/vo2.wav"  data-start="16"  data-duration="8.24"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo3"  src="assets/vo/vo3.wav"  data-start="34"  data-duration="11.94" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo4"  src="assets/vo/vo4.wav"  data-start="48"  data-duration="9.60"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo5"  src="assets/vo/vo5.wav"  data-start="58"  data-duration="8.64"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo6"  src="assets/vo/vo6.wav"  data-start="67"  data-duration="6.88"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo7"  src="assets/vo/vo7.wav"  data-start="79"  data-duration="8.32"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo8"  src="assets/vo/vo8.wav"  data-start="92"  data-duration="5.44"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo9"  src="assets/vo/vo9.wav"  data-start="99"  data-duration="14.24" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo10" src="assets/vo/vo10.wav" data-start="125" data-duration="7.84"  data-track-index="10" data-volume="1"></audio>
+      <audio id="vo11" src="assets/vo/vo11.wav" data-start="141" data-duration="10.00" data-track-index="10" data-volume="1"></audio>
+
+      <!-- ── Frame 1 · Hook (0–16) ── -->
+      <section class="clip" data-start="0" data-duration="16">
+        <div class="tag"><span class="num">00</span><span class="name">Parking System</span></div>
+        <div class="f1-inner">
+          <div class="f1-kicker">Neology · Prueba técnica full-stack</div>
+          <h1 class="f1-title"><span id="f1a">PARKING</span> <span id="f1b" class="l2">SYSTEM</span></h1>
+          <div class="f1-sub" id="f1sub">Entrada, salida y cobro en un solo sistema</div>
+          <div class="f1-words">
+            <span class="w" id="w1">Entra</span>
+            <span class="w" id="w2">Sale</span>
+            <span class="w" id="w3">Cobra</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Frame 2 · Idea (16–34) ── -->
+      <section class="clip" data-start="16" data-duration="18">
+        <div class="f2">
+          <div class="f2-title">
+            <div class="t1">Un sistema · dos caras</div>
+            <div class="t2">Todo conectado en un solo lugar</div>
+          </div>
+          <svg class="links" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+            <line x1="960" y1="540" x2="270" y2="240" stroke="rgba(59,157,253,0.4)" stroke-width="2"/>
+            <line x1="960" y1="540" x2="1650" y2="240" stroke="rgba(59,157,253,0.4)" stroke-width="2"/>
+            <line x1="960" y1="540" x2="270" y2="800" stroke="rgba(59,157,253,0.4)" stroke-width="2"/>
+            <line x1="960" y1="540" x2="1650" y2="800" stroke="rgba(59,157,253,0.4)" stroke-width="2"/>
+          </svg>
+          <div class="node n-tl" id="node1"><div class="n-ico">📷</div><div class="n-title">Kiosko QR</div><div class="n-sub">entrada / salida</div></div>
+          <div class="node n-tr" id="node2"><div class="n-ico">☕</div><div class="n-title">API REST</div><div class="n-sub">Spring Boot</div></div>
+          <div class="node n-bl" id="node3"><div class="n-ico">🖥️</div><div class="n-title">Panel admin</div><div class="n-sub">Angular</div></div>
+          <div class="node n-br" id="node4"><div class="n-ico">🗄️</div><div class="n-title">PostgreSQL</div><div class="n-sub">persistencia</div></div>
+          <div class="center"><div class="hub" id="hub"><div class="h-mark">PARKING</div><div class="h-sub">SYSTEM</div></div></div>
+        </div>
+      </section>
+
+      <!-- ── Frame 3 · QR real (34–48) ── -->
+      <section class="clip" data-start="34" data-duration="14">
+        <div class="tag"><span class="num">01</span><span class="name">Kiosko QR · escaneo real</span></div>
+        <div class="lower" id="lo-qr">
+          <div class="kicker">Entrada automática con QR real</div>
+          <div class="title">El código del parabrisas abre la pluma</div>
+          <div class="sub">Sin teclado: el kiosko lee el QR, valida la estancia y registra la entrada.</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 4 · Login (48–54) ── -->
+      <section class="clip" data-start="48" data-duration="6">
+        <div class="tag"><span class="num">02</span><span class="name">Acceso seguro</span></div>
+        <div class="lower" id="lo-login">
+          <div class="kicker">Sesión · JWT</div>
+          <div class="title">Login con token firmado</div>
+          <div class="sub">El identificador de usuario viaja cifrado dentro del token.</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 5 · Vehículos (54–62) ── -->
+      <section class="clip" data-start="54" data-duration="8">
+        <div class="tag"><span class="num">03</span><span class="name">Vehículos y QR</span></div>
+        <div class="lower" id="lo-veh">
+          <div class="kicker">Registro</div>
+          <div class="title">Cada vehículo, su tipo y su QR</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 6 · Alta (62–79) ── -->
+      <section class="clip" data-start="62" data-duration="17">
+        <div class="tag"><span class="num">04</span><span class="name">Alta de vehículo</span></div>
+        <div class="lower" id="lo-alta">
+          <div class="kicker">Alta en segundos</div>
+          <div class="title">Placa + tipo, y listo</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 7 · Estancias (79–92) ── -->
+      <section class="clip" data-start="79" data-duration="13">
+        <div class="tag"><span class="num">05</span><span class="name">Estancias y cobro</span></div>
+        <div class="lower" id="lo-est">
+          <div class="kicker">Cobro automático</div>
+          <div class="title">Entrada y salida, con costo calculado</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 8 · Pagos (92–99) ── -->
+      <section class="clip" data-start="92" data-duration="7">
+        <div class="tag"><span class="num">06</span><span class="name">Pagos</span></div>
+        <div class="lower" id="lo-pagos">
+          <div class="kicker">Residentes</div>
+          <div class="title">Informe acumulado del mes</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 9 · Seguridad (99–125) ── -->
+      <section class="clip" data-start="99" data-duration="26">
+        <div class="tag"><span class="num">07</span><span class="name">Seguridad por dentro</span></div>
+        <div class="f9-inner">
+          <div class="f9-head" id="f9head">Por <span class="acc">dentro</span></div>
+          <div class="f9-grid">
+            <div class="f9-card" id="c1"><div class="c-ico">🔐</div><div><div class="c-title">ID cifrado</div><div class="c-sub">El id del usuario va cifrado con AES/GCM.</div></div><div class="c-badge">AES/GCM</div></div>
+            <div class="f9-card" id="c2"><div class="c-ico">✍️</div><div><div class="c-title">Token firmado</div><div class="c-sub">Todo el JWT se firma con HMAC-SHA256.</div></div><div class="c-badge">HMAC</div></div>
+            <div class="f9-card super" id="c3"><div class="c-ico">👑</div><div><div class="c-title">Superadmin</div><div class="c-sub">Vive solo en las variables de entorno, no en el código.</div></div><div class="c-badge">SOLO .ENV</div></div>
+            <div class="f9-card" id="c4"><div class="c-ico">📷</div><div><div class="c-title">Kiosko abierto</div><div class="c-sub">Solo los endpoints del kiosko quedan sin token.</div></div><div class="c-badge">PÚBLICO</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Frame 10 · Usuarios (125–141) ── -->
+      <section class="clip" data-start="125" data-duration="16">
+        <div class="tag"><span class="num">08</span><span class="name">Usuarios y roles</span></div>
+        <div class="lower" id="lo-users">
+          <div class="kicker">Doble candado</div>
+          <div class="title">Solo el superadmin gestiona admins</div>
+          <div class="sub">Los admins no tocan usuarios, y nadie puede borrar su propia cuenta.</div>
+        </div>
+      </section>
+
+      <!-- ── Frame 11 · Cierre (141–159) ── -->
+      <section class="clip" data-start="141" data-duration="18">
+        <div class="tag"><span class="num">09</span><span class="name">Cierre</span></div>
+        <div class="f11-inner">
+          <div class="f11-mark" id="f11mark">PARKING <span class="acc">SYSTEM</span></div>
+          <div class="f11-stack">
+            <span class="chip" id="s1">Angular 16</span>
+            <span class="chip" id="s2">Spring Boot 3</span>
+            <span class="chip" id="s3">PostgreSQL 16</span>
+            <span class="chip" id="s4">Docker</span>
+            <span class="chip" id="s5">JWT</span>
+          </div>
+          <div class="f11-repo" id="f11repo">github.com/joneldiablo/parking-system-neology</div>
+        </div>
+      </section>
+
+      <div class="progress"><div class="fill" id="prog"></div></div>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to(".glow.a", { scale: 1.18, opacity: 0.85, duration: 7, ease: "sine.inOut", yoyo: true, repeat: 10 }, 0);
+      tl.to(".glow.b", { scale: 1.22, opacity: 0.9, duration: 9, ease: "sine.inOut", yoyo: true, repeat: 7 }, 0);
+      tl.to(".ghost-mark", { y: -40, duration: 11, ease: "sine.inOut", yoyo: true, repeat: 6 }, 0);
+      tl.fromTo("#prog", { width: "0%" }, { width: "100%", duration: 159, ease: "none" }, 0);
+
+      // Frame 1 (0–16)
+      tl.from("#f1a", { y: 90, opacity: 0, duration: 0.9, ease: "power4.out" }, 0.3);
+      tl.from("#f1b", { y: 90, opacity: 0, duration: 0.9, ease: "power4.out" }, 0.5);
+      tl.from("#f1sub", { y: 30, opacity: 0, duration: 0.7, ease: "power3.out" }, 1.1);
+      tl.from(["#w1", "#w2", "#w3"], { scale: 0.6, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.14 }, 1.6);
+      tl.to(".f1-inner", { opacity: 0, duration: 0.6, ease: "power2.in" }, 15.2);
+
+      // Frame 2 (16–34)
+      tl.from("#hub", { scale: 0, opacity: 0, duration: 0.8, ease: "back.out(1.8)" }, 16.4);
+      tl.from(["#node1", "#node2", "#node3", "#node4"], { scale: 0.7, opacity: 0, duration: 0.6, ease: "back.out(1.8)", stagger: 0.14 }, 17.0);
+      tl.from(".f2-title .t1", { x: -40, opacity: 0, duration: 0.6, ease: "power3.out" }, 16.4);
+      tl.from(".f2-title .t2", { x: -40, opacity: 0, duration: 0.6, ease: "power3.out" }, 16.7);
+      tl.to(".f2", { opacity: 0, duration: 0.6, ease: "power2.in" }, 33.2);
+
+      // Footage entrances (opacity only → no pelea con el layout)
+      tl.fromTo("#vid-qr",    { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 34.0);
+      tl.fromTo("#vid-login", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 48.0);
+      tl.fromTo("#vid-veh",   { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 54.0);
+      tl.fromTo("#vid-alta",  { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 62.0);
+      tl.fromTo("#vid-est",   { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 79.0);
+      tl.fromTo("#vid-pagos", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 92.0);
+      tl.fromTo("#vid-users", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 125.0);
+      tl.fromTo("#halo", { opacity: 0 }, { opacity: 1, duration: 1.0, ease: "power2.out" }, 34.0);
+      tl.to("#halo", { opacity: 0, duration: 1.0, ease: "power2.in" }, 47.0);
+      tl.set("#halo", { opacity: 0 }, 48.0);
+
+      function lower(sel, at, dur) {
+        tl.fromTo(sel, { x: -80, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out" }, at + 0.5);
+        tl.to(sel, { x: -60, opacity: 0, duration: 0.5, ease: "power2.in" }, at + dur - 0.9);
+      }
+      lower("#lo-qr", 34, 14);
+      lower("#lo-login", 48, 6);
+      lower("#lo-veh", 54, 8);
+      lower("#lo-alta", 62, 17);
+      lower("#lo-est", 79, 13);
+      lower("#lo-pagos", 92, 7);
+      lower("#lo-users", 125, 16);
+
+      // Frame 9 (99–125)
+      tl.from("#f9head", { y: 60, opacity: 0, duration: 0.8, ease: "power4.out" }, 99.3);
+      tl.from(["#c1", "#c2", "#c3", "#c4"], { y: 70, opacity: 0, duration: 0.6, ease: "back.out(1.6)", stagger: 0.16 }, 99.9);
+      tl.to(".f9-inner", { opacity: 0, duration: 0.6, ease: "power2.in" }, 124.2);
+
+      // Frame 11 (141–159)
+      tl.from("#f11mark", { y: 80, opacity: 0, duration: 0.9, ease: "power4.out" }, 141.3);
+      tl.from(["#s1", "#s2", "#s3", "#s4", "#s5"], { scale: 0.6, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.1 }, 142.0);
+      tl.from("#f11repo", { y: 24, opacity: 0, duration: 0.6, ease: "power3.out" }, 142.6);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

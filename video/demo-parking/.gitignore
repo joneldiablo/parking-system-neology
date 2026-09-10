@@ -1,0 +1,14 @@
+# Grabaciones crudas (pesadas, no se versionan)
+assets/incoming/
+
+# Audio pesado (música de fondo generada)
+assets/audio/
+
+# Renders y artefactos generados por HyperFrames
+renders/
+qa/
+.media/
+
+# Capturas / temporales de render
+work/
+*.tmp
