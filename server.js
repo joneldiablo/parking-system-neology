@@ -1,4 +1,5 @@
-// Kiosko/Admin/API unificados en HTTPS :8443 -> puenteo al jar original (HTTP :8082)
+// Auxiliar: admin + kiosko + API unificados en HTTPS :8443 -> puenteo al JAR (HTTP :8082)
+// Uso:  node server.js   (opciones: KIOSK_PORT=8443, KIOSK_UPSTREAM=127.0.0.1:8082)
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
@@ -48,7 +49,7 @@ const server = https.createServer({
   });
   proxy.on('error', () => {
     if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'text/plain' });
-    res.end('Kiosko: no hay respuesta del backend (' + UPSTREAM + ')');
+    res.end('Servidor: no hay respuesta del backend (' + UPSTREAM + ')');
   });
   req.pipe(proxy);
 });

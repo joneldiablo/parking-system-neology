@@ -163,6 +163,10 @@
                                             <includes>
                                                 <include>**/*</include>
                                             </includes>
+                                            <excludes>
+                                                <exclude>**/*.pem</exclude>
+                                                <exclude>**/*.key</exclude>
+                                            </excludes>
                                         </resource>
                                     </resources>
                                 </configuration>

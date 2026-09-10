@@ -323,13 +323,13 @@ un único origen seguro, necesario para que el navegador pida permiso de cámara
 
 ```bash
 # 1) generar el certificado autofirmado (una vez; la IP de tu máquina en la LAN)
-kiosk/gen-cert.sh 192.168.0.80        # crea kiosk/cert.pem + kiosk/key.pem (ignorados en git)
+./gen-cert.sh 192.168.0.80            # crea cert.pem + key.pem en la raíz (ignorados en git)
 
 # 2) backend normal
 java -jar backend/target/parking-system-1.0.0.jar
 
 # 3) proxy HTTPS todo-en-uno -> :8082
-KIOSK_UPSTREAM=127.0.0.1:8082 node kiosk/server.js
+KIOSK_UPSTREAM=127.0.0.1:8082 node server.js
 #    -- o por defecto ya usa 127.0.0.1:8082 en :8443
 
 # abre (acepta el certificado autofirmado una vez):
@@ -341,13 +341,28 @@ El proxy además: hace **SPA fallback** para rutas profundas del admin
 (recargar `/vehiculos` no da 404), sirve `/favicon.ico` y mantiene el
 redirect `/kiosk` relativo (no salta al host interno `:8082`).
 
-Como el kiosko resuelve la API sola (`/neo` dentro del JAR, `http://localhost:8082/neo`
-servido aparte), ambos modos funcionan sin configuración extra.
-
 > Si la cámara no está disponible (escritorios/headless), el kiosko muestra el motivo
 > y queda activo un **campo manual** (abajo a la izquierda) para digitar la placa y
 > seguir el mismo flujo. Los orígenes `http://localhost:4200`, `http://localhost:8090`
 > y la LAN (`http(s)://192.168.0.*:*)` están permitidos en CORS.
+
+---
+
+## 🐳 Docker (producción)
+
+Opcional: la app empaquetada en contenedores (`docker compose`).
+
+```bash
+docker compose up --build -d          # db (postgres:16) + app (jar :8082) + proxy (https :8443)
+```
+
+- `app` construye el **JAR en multi-stage** (Maven + Node compilan frontend, el
+  runtime solo lleva JRE). El contenedor **no** incluye certs TLS: el copy de
+  `kiosk/` al JAR excluye `*.pem` / `*.key`.
+- `proxy` reutiliza `server.js` y **genera un certificado autofirmado en el
+  primer arranque** (var `KIOSK_CERT_HOST`, la IP pública de tu máquina; los
+  certs van ignorados en git). Sustituye esos certs por los tuyos en producción.
+- Config por variables de entorno (`DB_HOST`, `DB_PASSWORD`, `SERVER_PORT`…).
 
 ---
 

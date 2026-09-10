@@ -1,22 +1,48 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: parking-db
+  db:
+    image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: parking_db
       POSTGRES_USER: parking_user
       POSTGRES_PASSWORD: parking_secret_2025
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U parking_user -d parking_db"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: parking_db
+      DB_USER: parking_user
+      DB_PASSWORD: parking_secret_2025
+      SERVER_PORT: "8082"
+    ports:
+      - "8082:8082"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    restart: unless-stopped
+    environment:
+      KIOSK_PORT: "8443"
+      KIOSK_UPSTREAM: app:8082
+      KIOSK_CERT_HOST: "${KIOSK_CERT_HOST:-192.168.0.80}"
+    ports:
+      - "8443:8443"
+    depends_on:
+      - app
 
 volumes:
-  postgres_data:
+  pgdata:

@@ -1,0 +1,12 @@
+# Proxy HTTPS (admin + kiosko + API en un solo origen seguro) sobre Node.
+# Genera un certificado autofirmado en el primer arranque si no existe.
+FROM node:20-alpine
+RUN apk add --no-cache openssl
+WORKDIR /app
+COPY server.js docker-entrypoint.sh ./
+RUN chmod +x /app/docker-entrypoint.sh
+ENV KIOSK_PORT=8443
+ENV KIOSK_UPSTREAM=app:8082
+ENV KIOSK_CERT_HOST=192.168.0.80
+EXPOSE 8443
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

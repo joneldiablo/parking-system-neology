@@ -1,0 +1,14 @@
+.git
+.gitignore
+**/.git
+**/node_modules
+**/target
+frontend/dist
+frontend/.angular
+*.log
+.DS_Store
+Thumbs.db
+backend/src/main/resources/static/
+cert.pem
+key.pem
+*.pem
