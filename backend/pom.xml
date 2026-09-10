@@ -143,6 +143,20 @@
                                     </arguments>
                                 </configuration>
                             </execution>
+                            <execution>
+                                <id>copy-kiosk-styles</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>mkdir -p target/classes/static/kiosk &amp;&amp; cp src/main/resources/static/styles.*.css target/classes/static/kiosk/styles.css</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
                         </executions>
                     </plugin>
                     <plugin>

@@ -1,11 +1,11 @@
-// Bootstrap con compilación SCSS
-// Personaliza variables antes de importar el framework
-$primary: #0d6efd;
-
-// Importar Bootstrap completo desde node_modules
+// Bootstrap con compilación SCSS + tema Bootswatch «materia»
+// Orden de Bootswatch: functions -> variables del tema -> Bootstrap -> reglas del tema.
 @import 'bootstrap/scss/functions';
+@import 'bootswatch/dist/materia/variables';
 @import 'bootstrap/scss/variables';
 @import 'bootstrap/scss/variables-dark';
+
+// Importar Bootstrap completo desde node_modules
 @import 'bootstrap/scss/maps';
 @import 'bootstrap/scss/mixins';
 @import 'bootstrap/scss/utilities';
@@ -42,6 +42,7 @@ $primary: #0d6efd;
 @import 'bootstrap/scss/placeholders';
 @import 'bootstrap/scss/helpers';
 @import 'bootstrap/scss/utilities/api';
+@import 'bootswatch/dist/materia/bootswatch';
 
 // Iconos
 @import 'bootstrap-icons/font/bootstrap-icons.css';
