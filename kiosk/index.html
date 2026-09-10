@@ -2,6 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a7f37'/%3E%3Ctext x='8' y='12.5' font-size='11' text-anchor='middle' fill='white'%3EP%3C/text%3E%3C/svg%3E">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0b1020">
   <title>Car QR · Kiosko de Acceso</title>
@@ -68,6 +70,12 @@
     #overlay.show { display: flex; }
     #overlay.ok    { background: linear-gradient(160deg, #0f7a4d, #0b5f3b); }
     #overlay.ko    { background: linear-gradient(160deg, #b23a35, #8f2c28); }
+    #overlay.warn  { background: linear-gradient(160deg, #b07d22, #8a611a); }
+    #overlay .btn-retry {
+      margin-top: .75rem; padding: .9rem 2rem; font-size: 1.1rem; font-weight: 700;
+      border-radius: .75rem; border: 0; cursor: pointer;
+      background: rgba(255,255,255,.92); color: #0b1020;
+    }
     #overlay.icon { font-size: 6rem; line-height: 1; }
     #overlay h1 { font-weight: 800; letter-spacing: .06em; font-size: clamp(2.4rem, 8vw, 4.5rem); margin: 0; text-transform: uppercase; }
     #overlay .placa {
@@ -106,6 +114,7 @@
     <div class="placa" id="ovPlaca"></div>
     <div class="detalle" id="ovDetail"></div>
     <div class="sub" id="ovSub"></div>
+    <button class="btn-retry" id="ovBtn" style="display:none">▶ Reintentar cámara</button>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -118,7 +127,10 @@
         const override = (localStorage.getItem('kiosk.api') || '').trim();
         if (override) return override.replace(/\/+$/, '');
         const viaSpring = location.protocol === 'https:' || location.port === '8082';
-        return viaSpring ? '/neo' : 'http://localhost:8082/neo';
+        if (viaSpring) return '/neo';
+        // El kiosko puede abrirse desde cualquier host (LAN): usa el mismo
+        // hostname desde el que se sirvió la página para llegar a la API.
+        return `${location.protocol}//${location.hostname}:8082/neo`;
       })();
 
       let scanner = null;
@@ -129,10 +141,20 @@
       const camBadge = $('camBadge');
 
       // ── Sonido (WebAudio, sin librerías) ─────────────────────────────────
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // El AudioContext solo puede sonar tras un gesto del usuario (autoplay
+      // policy): se crea de forma perezosa y se resuelve en el primer gesto.
+      let audioCtx = null;
+      function ensureAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      }
+      document.addEventListener('pointerdown', ensureAudio, { once: true });
+      document.addEventListener('keydown', ensureAudio, { once: true });
       function beep(ok) {
-        const ctx = audioCtx;
-        if (ctx.state === 'suspended') ctx.resume();
+        let ctx;
+        try { ctx = ensureAudio(); } catch (e) { return; }
+        if (ctx.state !== 'running') return;
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
@@ -158,6 +180,7 @@
         $('ovPlaca').textContent = placa || '';
         $('ovDetail').textContent = detail || '';
         $('ovSub').textContent = 'Cerrando en unos segundos…';
+        $('ovBtn').style.display = 'none';
         beep(kind === 'ok');
         clearTimers();
         timers.push(setTimeout(() => { ov.className = ''; startScanner(); }, 4500));
@@ -207,9 +230,83 @@
       }
 
       // ── Cámara (html5-qrcode) ────────────────────────────────────────────
+      let permStatus = null;
+
       function setCam(on, msg) {
         camBadge.textContent = on ? '● Cámara: activa' : '● Cámara: ' + msg;
         camBadge.classList.toggle('on', !!on);
+      }
+
+      function applyPermBadge(state) {
+        if (state === 'granted') setCam(true, '');
+        else if (state === 'denied') setCam(false, 'permiso bloqueado');
+        else setCam(false, 'permiso pendiente');
+      }
+
+      function hideBlocked() {
+        const ov = $('overlay');
+        ov.className = '';
+        $('ovBtn').style.display = 'none';
+      }
+
+      function showBlocked(cause) {
+        const ov = $('overlay');
+        ov.className = 'show warn';
+        $('ovIcon').textContent = '📷';
+        if (cause === 'insecure') {
+          $('ovTitle').textContent = 'CÁMARA NO DISPONIBLE';
+          $('ovDetail').textContent = 'Este navegador solo permite la cámara en conexiones seguras (https:// o http://localhost).';
+          $('ovSub').textContent = 'Estás viendo el kiosko por «No seguro» (http:// con IP de red): Chrome/Brave desactivan getUserMedia ahí. Abre http://localhost:8090 o sirve el kiosko por HTTPS.';
+        } else {
+          $('ovTitle').textContent = 'CÁMARA BLOQUEADA';
+          $('ovDetail').textContent = 'El navegador no tiene permiso para usar la cámara.';
+          $('ovSub').textContent = 'Haz clic en el candado 🔒 de la barra de direcciones y activa «Cámara», o compruébalo desde los ajustes del navegador.';
+        }
+        $('ovPlaca').textContent = '';
+        $('ovBtn').style.display = 'inline-block';
+        beep(false);
+      }
+
+      async function checkCameraPermission() {
+        camBadge.textContent = '● Cámara: comprobando permiso…';
+        if (navigator.permissions && navigator.permissions.query) {
+          try {
+            permStatus = await navigator.permissions.query({ name: 'camera' });
+            permStatus.addEventListener('change', () => {
+              if (permStatus.state === 'granted') { hideBlocked(); startScanner(); }
+              else if (permStatus.state === 'denied') stopScanner();
+            });
+          } catch (e) {
+            // Permisos API no soporta 'camera' aquí: seguimos normal
+          }
+        }
+
+        // Contexto no seguro (http:// por IP) → Chrome/Brave no exponen getUserMedia.
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setCam(false, 'getUserMedia no disponible');
+          showBlocked('insecure');
+          return;
+        }
+
+        // Alerta para separar el flujo: al pulsar «Aceptar» se lanza la solicitud,
+        // así es visible si el navegador pide el permiso o no.
+        alert('El kiosko va a pedir permiso para usar la cámara.\nPulsa «Aceptar» y el navegador lanzará la solicitud.');
+        requestCameraPermission();
+      }
+
+      async function requestCameraPermission() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach((t) => t.stop());
+          hideBlocked();
+          startScanner();
+        } catch (e) {
+          const name = (e && e.name) || 'error';
+          applyPermBadge('denied');
+          // Diagnóstico visible: si el «Sí» no trajo el prompt, este error lo revela.
+          alert('No se pudo activar la cámara (' + name + ').\nSi cerraste la petición por error, pulsa «Reintentar» en la pantalla.');
+          startScanner();
+        }
       }
 
       async function startScanner() {
@@ -227,7 +324,13 @@
           setCam(true);
         } catch (e) {
           scanner = null;
-          setCam(false, e?.message || 'no disponible');
+          const msg = (e && e.message) || '';
+          if (/notallowed|permission|denied|unable|notreadable/i.test(msg)) {
+            applyPermBadge('denied');
+            showBlocked();
+          } else {
+            setCam(false, msg || 'no disponible');
+          }
         }
       }
 
@@ -248,7 +351,11 @@
       });
 
       window.addEventListener('beforeunload', stopScanner);
-      startScanner();
+      $('ovBtn').addEventListener('click', () => {
+        hideBlocked();
+        requestCameraPermission();
+      });
+      checkCameraPermission();
     })();
   </script>
 </body>

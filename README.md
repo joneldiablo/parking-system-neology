@@ -316,13 +316,38 @@ java -jar backend/target/parking-system-1.0.0.jar
 python3 -m http.server 8090 --directory kiosk   # abre http://localhost:8090
 ```
 
+**C) Todo en un solo HTTPS (LAN, recomendado para kiosko)** — el puerto seguro
+`:8443` hace de **puenteo** hacia el JAR (`:8082`): sirve admin, kiosko y API en
+un único origen seguro, necesario para que el navegador pida permiso de cámara
+(Chrome/Brave solo exponen `getUserMedia` en `https`/`localhost`).
+
+```bash
+# 1) generar el certificado autofirmado (una vez; la IP de tu máquina en la LAN)
+kiosk/gen-cert.sh 192.168.0.80        # crea kiosk/cert.pem + kiosk/key.pem (ignorados en git)
+
+# 2) backend normal
+java -jar backend/target/parking-system-1.0.0.jar
+
+# 3) proxy HTTPS todo-en-uno -> :8082
+KIOSK_UPSTREAM=127.0.0.1:8082 node kiosk/server.js
+#    -- o por defecto ya usa 127.0.0.1:8082 en :8443
+
+# abre (acepta el certificado autofirmado una vez):
+#   https://192.168.0.80:8443/           <- admin
+#   https://192.168.0.80:8443/kiosk/     <- kiosko
+```
+
+El proxy además: hace **SPA fallback** para rutas profundas del admin
+(recargar `/vehiculos` no da 404), sirve `/favicon.ico` y mantiene el
+redirect `/kiosk` relativo (no salta al host interno `:8082`).
+
 Como el kiosko resuelve la API sola (`/neo` dentro del JAR, `http://localhost:8082/neo`
 servido aparte), ambos modos funcionan sin configuración extra.
 
 > Si la cámara no está disponible (escritorios/headless), el kiosko muestra el motivo
 > y queda activo un **campo manual** (abajo a la izquierda) para digitar la placa y
-> seguir el mismo flujo. Los orígenes `http://localhost:4200` y `http://localhost:8090`
-> están permitidos en CORS.
+> seguir el mismo flujo. Los orígenes `http://localhost:4200`, `http://localhost:8090`
+> y la LAN (`http(s)://192.168.0.*:*)` están permitidos en CORS.
 
 ---
 

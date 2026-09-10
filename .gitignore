@@ -38,3 +38,7 @@ frontend/.angular/
 
 # Frontend build generado (servido por Spring Boot)
 backend/src/main/resources/static/
+
+# TLS autofirmado del kiosko (regenerar con kiosk/gen-cert.sh)
+kiosk/cert.pem
+kiosk/key.pem
