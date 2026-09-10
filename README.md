@@ -343,8 +343,17 @@ redirect `/kiosk` relativo (no salta al host interno `:8082`).
 
 > Si la cámara no está disponible (escritorios/headless), el kiosko muestra el motivo
 > y queda activo un **campo manual** (abajo a la izquierda) para digitar la placa y
-> seguir el mismo flujo. Los orígenes `http://localhost:4200`, `http://localhost:8090`
-> y la LAN (`http(s)://192.168.0.*:*)` están permitidos en CORS.
+> seguir el mismo flujo. Los orígenes ``http://localhost:4200``, ``http://localhost:8090``,
+> la LAN (`http(s)://192.168.0.*:*`) y `https://neo.diablitodevops.com` están permitidos
+> en CORS (`app.cors.allowed-origin-patterns`, sobreescribible con la env
+> `CORS_ALLOWED_ORIGIN_PATTERNS`).
+
+> ⚠️ **No quites el dominio del CORS list**: los scripts `type="module"` de Angular
+> (`runtime/polyfills/main*.js`) se cargan en **modo CORS** y si el `Origin` no está
+> permitido el navegador recibe **403** en esos archivos aunque el HTML cargue bien
+> (curl siempre responde 200 sin cabecera `Origin`, por eso no lo detectas por curl).
+> La app da 200 con `Origin: https://neo.diablitodevops.com` cuando el patrón está
+> presente.
 
 ---
 
